@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bear Call Spread Analyzer - Persistent UX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        input[type="number"], input[type="text"] { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+        input[type="number"]:focus, input[type="text"]:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+        
+        /* Hide number input arrows for a cleaner look */
+        .no-spinners::-webkit-outer-spin-button,
+        .no-spinners::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .no-spinners {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="p-6 font-sans antialiased min-h-screen flex items-center justify-center">
+
+    <div class="max-w-7xl w-full grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        <div class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+            <h2 class="text-lg font-bold mb-4 text-blue-400">Strategy Inputs</h2>
+            
+            <div class="space-y-4">
+                <div class="p-3 bg-slate-900 rounded-lg border border-slate-700">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Short Leg (Sell CE)</h3>
+                    <div class="flex flex-col mb-3">
+                        <input type="text" id="shortLabel" value="NIFTY 24 MAR 24000 CE" class="p-1.5 text-sm rounded w-full bg-slate-800 border-slate-600 text-blue-300 font-semibold placeholder-slate-500 save-trigger">
+                    </div>
+                    <div class="flex flex-col mb-2">
+                        <label class="text-xs mb-1 text-slate-300">Strike Price</label>
+                        <input type="number" id="shortStrike" value="24000" class="p-1.5 text-sm rounded w-full strike-input save-trigger">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-xs mb-1 text-slate-300">Premium Collected (₹)</label>
+                        <input type="number" id="shortPremium" value="18" step="0.05" class="p-1.5 text-sm rounded w-full premium-input save-trigger">
+                    </div>
+                </div>
+
+                <div class="p-3 bg-slate-900 rounded-lg border border-slate-700">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Long Leg (Buy CE)</h3>
+                    <div class="flex flex-col mb-3">
+                        <input type="text" id="longLabel" value="NIFTY 24 MAR 24200 CE" class="p-1.5 text-sm rounded w-full bg-slate-800 border-slate-600 text-slate-300 font-semibold placeholder-slate-500 save-trigger">
+                    </div>
+                    <div class="flex flex-col mb-2">
+                        <label class="text-xs mb-1 text-slate-300">Strike Price</label>
+                        <input type="number" id="longStrike" value="24200" class="p-1.5 text-sm rounded w-full strike-input save-trigger">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-xs mb-1 text-slate-300">Premium Paid (₹)</label>
+                        <input type="number" id="longPremium" value="10" step="0.05" class="p-1.5 text-sm rounded w-full premium-input save-trigger">
+                    </div>
+                </div>
+
+                <div class="flex flex-col pt-2">
+                    <label class="text-xs mb-1 text-slate-300">Lot Size (Multiplier)</label>
+                    <div class="flex items-center">
+                        <button type="button" id="btnDecrease" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1.5 px-4 rounded-l border border-slate-600 focus:outline-none transition-colors select-none">-</button>
+                        
+                        <input type="number" id="lotSize" value="65" readonly class="p-1.5 text-sm w-full bg-slate-900 border-y border-slate-700 text-center font-bold text-slate-200 no-spinners focus:outline-none cursor-default save-trigger">
+                        
+                        <button type="button" id="btnIncrease" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1.5 px-4 rounded-r border border-slate-600 focus:outline-none transition-colors select-none">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700 xl:col-span-2 flex flex-col">
+            
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-center">
+                    <p class="text-[10px] text-slate-400 uppercase mb-1">Max Profit</p>
+                    <p class="text-lg font-bold text-emerald-400" id="maxProfitDisplay">₹0</p>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-center">
+                    <p class="text-[10px] text-slate-400 uppercase mb-1">Max Loss</p>
+                    <p class="text-lg font-bold text-rose-400" id="maxLossDisplay">₹0</p>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-center">
+                    <p class="text-[10px] text-slate-400 uppercase mb-1">Breakeven</p>
+                    <p class="text-lg font-bold text-blue-400" id="breakevenDisplay">0</p>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-center">
+                    <p class="text-[10px] text-slate-400 uppercase mb-1">Net Premium</p>
+                    <p class="text-lg font-bold text-slate-200" id="netPremiumDisplay">₹0</p>
+                </div>
+                
+                <div class="bg-slate-900 p-3 rounded-lg border border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.1)] text-center relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
+                    <p class="text-[10px] text-amber-200/80 uppercase mb-1 font-semibold" title="Edit this value to match your broker terminal">Broker Margin (₹) ✎</p>
+                    <input type="number" id="marginInput" class="no-spinners w-full bg-transparent text-center text-lg font-bold text-amber-400 outline-none border-b border-transparent focus:border-amber-500/50 focus:bg-slate-800 transition-colors pb-0.5 save-trigger" />
+                    <p class="text-[10px] text-amber-200/60 mt-1 font-medium">ROC: <span id="rocDisplay" class="text-amber-300">0.00%</span></p>
+                </div>
+            </div>
+
+            <div class="flex-grow relative h-80 w-full">
+                <canvas id="payoffChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let payoffChartInstance = null;
+        const STORAGE_KEY = 'bearCallSpreadSavedData';
+
+        const formatCurrency = (amount) => {
+            return '₹' + amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+        
+        const formatNumber = (num) => {
+            return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        // --- Local Storage Logic ---
+        function saveToLocalStorage() {
+            const data = {
+                shortLabel: document.getElementById('shortLabel').value,
+                shortStrike: document.getElementById('shortStrike').value,
+                shortPremium: document.getElementById('shortPremium').value,
+                longLabel: document.getElementById('longLabel').value,
+                longStrike: document.getElementById('longStrike').value,
+                longPremium: document.getElementById('longPremium').value,
+                lotSize: document.getElementById('lotSize').value,
+                marginInput: document.getElementById('marginInput').value
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            let autoCalcMargin = true; // Default to auto-calculating margin on first load
+
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    if(data.shortLabel) document.getElementById('shortLabel').value = data.shortLabel;
+                    if(data.shortStrike) document.getElementById('shortStrike').value = data.shortStrike;
+                    if(data.shortPremium) document.getElementById('shortPremium').value = data.shortPremium;
+                    if(data.longLabel) document.getElementById('longLabel').value = data.longLabel;
+                    if(data.longStrike) document.getElementById('longStrike').value = data.longStrike;
+                    if(data.longPremium) document.getElementById('longPremium').value = data.longPremium;
+                    if(data.lotSize) document.getElementById('lotSize').value = data.lotSize;
+                    
+                    // If the user previously saved a custom margin, load it and don't auto-overwrite it
+                    if(data.marginInput) {
+                        document.getElementById('marginInput').value = data.marginInput;
+                        autoCalcMargin = false; 
+                    }
+                } catch (e) {
+                    console.error("Could not parse saved local storage data", e);
+                }
+            }
+            return autoCalcMargin;
+        }
+
+        // Main calculation and render function
+        function calculateAndRender(autoUpdateMargin = true) {
+            const shortStrike = parseFloat(document.getElementById('shortStrike').value) || 0;
+            const shortPremium = parseFloat(document.getElementById('shortPremium').value) || 0;
+            const longStrike = parseFloat(document.getElementById('longStrike').value) || 0;
+            const longPremium = parseFloat(document.getElementById('longPremium').value) || 0;
+            const lotSize = parseFloat(document.getElementById('lotSize').value) || 65;
+
+            // Core Calculations
+            const netPremium = shortPremium - longPremium;
+            const maxProfit = netPremium * lotSize;
+            const spreadWidth = longStrike - shortStrike;
+            const maxLoss = (spreadWidth - netPremium) * lotSize;
+            const breakeven = shortStrike + netPremium;
+
+            // Update DOM metrics
+            document.getElementById('maxProfitDisplay').innerText = formatCurrency(maxProfit);
+            document.getElementById('maxLossDisplay').innerText = '-' + formatCurrency(maxLoss > 0 ? maxLoss : 0);
+            document.getElementById('breakevenDisplay').innerText = formatNumber(breakeven);
+            document.getElementById('netPremiumDisplay').innerText = formatCurrency(netPremium);
+
+            // Handle Margin and ROC logic
+            const marginInputEl = document.getElementById('marginInput');
+            
+            if (autoUpdateMargin) {
+                const estimatedBrokerMargin = maxLoss > 0 ? maxLoss * 2.5 : 0;
+                marginInputEl.value = Math.round(estimatedBrokerMargin); 
+            }
+
+            const currentMargin = parseFloat(marginInputEl.value) || 0;
+            let roc = 0;
+            if (currentMargin > 0 && maxProfit > 0) {
+                roc = (maxProfit / currentMargin) * 100;
+            }
+            document.getElementById('rocDisplay').innerText = roc.toFixed(2) + '%';
+
+            // Chart Generation
+            const labels = [];
+            const dataPoints = [];
+            const padding = spreadWidth > 0 ? spreadWidth : 100;
+            const minPrice = shortStrike - padding;
+            const maxPrice = longStrike + padding;
+            const step = (maxPrice - minPrice) / 100;
+
+            for (let price = minPrice; price <= maxPrice; price += step) {
+                labels.push(Math.round(price));
+                let shortCallPayoff = shortPremium - Math.max(0, price - shortStrike);
+                let longCallPayoff = Math.max(0, price - longStrike) - longPremium;
+                let totalPayoff = (shortCallPayoff + longCallPayoff) * lotSize;
+                dataPoints.push(totalPayoff);
+            }
+
+            const ctx = document.getElementById('payoffChart').getContext('2d');
+            if (payoffChartInstance) { payoffChartInstance.destroy(); }
+
+            payoffChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Profit/Loss',
+                        data: dataPoints,
+                        borderColor: '#3b82f6',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: { target: 'origin', above: 'rgba(52, 211, 153, 0.2)', below: 'rgba(244, 63, 94, 0.2)' }
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) { label += formatCurrency(context.parsed.y); }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Underlying Price at Expiry', color: '#cbd5e1' } },
+                        y: {
+                            grid: { color: '#334155', zeroLineColor: '#cbd5e1' },
+                            ticks: { color: '#94a3b8', callback: function(value) { return '₹' + value.toLocaleString('en-IN'); } },
+                            title: { display: true, text: 'Total P&L', color: '#cbd5e1' }
+                        }
+                    }
+                }
+            });
+
+            // Save state to local storage after every calculation
+            saveToLocalStorage();
+        }
+
+        // --- Event Listeners ---
+        
+        // Listen to all inputs with the 'save-trigger' class (labels, strikes, premiums)
+        const triggerInputs = document.querySelectorAll('.save-trigger');
+        triggerInputs.forEach(input => {
+            input.addEventListener('input', (e) => {
+                // If they manually edit the margin, don't auto-calculate it
+                const isMarginEdit = e.target.id === 'marginInput';
+                // If they edit a label, we don't need to auto-calculate margin either
+                const isLabelEdit = e.target.id === 'shortLabel' || e.target.id === 'longLabel';
+                
+                calculateAndRender(!(isMarginEdit || isLabelEdit)); 
+            });
+        });
+
+        // Lot Size Stepper Logic
+        const lotSizeInput = document.getElementById('lotSize');
+        
+        document.getElementById('btnDecrease').addEventListener('click', () => {
+            let currentVal = parseInt(lotSizeInput.value) || 65;
+            if (currentVal > 65) {
+                lotSizeInput.value = currentVal - 65;
+                calculateAndRender(true);
+            }
+        });
+
+        document.getElementById('btnIncrease').addEventListener('click', () => {
+            let currentVal = parseInt(lotSizeInput.value) || 65;
+            lotSizeInput.value = currentVal + 65;
+            calculateAndRender(true);
+        });
+
+        // --- Initialization ---
+        // 1. Load data from local storage (if any exists)
+        const shouldAutoCalcMargin = loadFromLocalStorage();
+        
+        // 2. Run the initial calculation and chart render
+        calculateAndRender(shouldAutoCalcMargin);
+
+    </script>
+</body>
+</html>
